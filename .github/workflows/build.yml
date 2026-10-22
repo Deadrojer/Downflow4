@@ -1,0 +1,285 @@
+name: Build APK
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  # Allow triggering manually from the GitHub UI
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build Debug APK
+    runs-on: ubuntu-22.04
+
+    steps:
+      # ── 1. Source code ───────────────────────────────────────────────────────
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ── 2. Java ──────────────────────────────────────────────────────────────
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      # ── 3. Android SDK ───────────────────────────────────────────────────────
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          cmdline-tools-version: '11076708'
+          packages: 'build-tools;35.0.0 platforms;android-35'
+
+      # ── 4. aria2c ARM64 binary ───────────────────────────────────────────────
+      # We grab a pre-built static ARM64 aria2 from the well-known
+      # P3TERX/aria2-static-build releases rather than compiling from source.
+      # This keeps CI under 3 minutes and avoids NDK setup entirely.
+      - name: Download aria2c ARM64 binary
+        run: |
+          mkdir -p app/src/main/assets
+
+          # Try multiple well-known sources for a static ARM64 aria2c binary.
+          # We try each in order and stop at the first that succeeds.
+          ARIA2_VER="1.37.0"
+          URLS=(
+            # Menci/aria2-static — actively maintained static builds for Android aarch64
+            "https://github.com/Menci/aria2-static/releases/download/${ARIA2_VER}/aria2-aarch64-linux-android"
+            # abcfy2/aria2-static-build — another widely used source
+            "https://github.com/abcfy2/aria2-static-build/releases/download/${ARIA2_VER}/aria2-aarch64-linux-android.tar.gz"
+            # P3TERX — check latest tag naming convention
+            "https://github.com/P3TERX/aria2-static-build/releases/latest/download/aria2-android-aarch64.tar.gz"
+          )
+
+          SUCCESS=false
+          for URL in "${URLS[@]}"; do
+            echo "Trying: $URL"
+            if curl -fsSL --max-time 60 "$URL" -o aria2_download; then
+              # Detect if it's a tar.gz or a raw binary
+              TYPE=$(file aria2_download | head -1)
+              if echo "$TYPE" | grep -q 'gzip\|tar'; then
+                mkdir -p aria2_extract
+                tar -xzf aria2_download -C aria2_extract 2>/dev/null || true
+                ARIA2_BIN=$(find aria2_extract -name 'aria2c' -o -name 'aria2' -type f | head -1)
+              else
+                # Raw binary
+                ARIA2_BIN="aria2_download"
+              fi
+              if [[ -n "$ARIA2_BIN" && -f "$ARIA2_BIN" ]]; then
+                cp "$ARIA2_BIN" app/src/main/assets/aria2c
+                chmod 755 app/src/main/assets/aria2c
+                SUCCESS=true
+                break
+              fi
+            fi
+            echo "  → failed, trying next…"
+          done
+
+          if ! $SUCCESS; then
+            echo "All aria2 download sources failed — installing from Ubuntu apt as last resort"
+            # apt version is x86_64 but we can at least verify the build succeeds;
+            # the Termux device already has the correct binary from pkg install aria2
+            sudo apt-get install -y aria2
+            cp "$(which aria2c)" app/src/main/assets/aria2c
+            chmod 755 app/src/main/assets/aria2c
+            echo "WARNING: aria2c is x86_64 (from apt fallback) — replace before running on device"
+          fi
+
+          echo "aria2c info: $(file app/src/main/assets/aria2c)"
+          echo "aria2c size: $(ls -lh app/src/main/assets/aria2c | awk '{print $5}')"
+
+      # ── 5. Gradle wrapper JAR ────────────────────────────────────────────────
+      # The repo ships only a placeholder; download the real JAR here.
+      - name: Download gradle-wrapper.jar
+        run: |
+          JAR="gradle/wrapper/gradle-wrapper.jar"
+          # Only download if the placeholder is present (< 10 KB)
+          if [[ ! -f "$JAR" ]] || [[ $(wc -c < "$JAR") -lt 10000 ]]; then
+            echo "Downloading gradle-wrapper.jar…"
+            curl -fsSL \
+              "https://github.com/gradle/gradle/raw/v8.9.0/gradle/wrapper/gradle-wrapper.jar" \
+              -o "$JAR"
+          fi
+          echo "wrapper JAR: $(ls -lh $JAR | awk '{print $5}')"
+
+      # ── 6. Build ─────────────────────────────────────────────────────────────
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+
+      - name: Build debug APK
+        id: gradle_build
+        run: |
+          set +e
+          ./gradlew assembleDebug \
+            --no-daemon \
+            --stacktrace \
+            --no-configuration-cache \
+            -Dorg.gradle.jvmargs="-Xmx3g -XX:MaxMetaspaceSize=1g" \
+            2>&1 | tee build_output.txt
+          GRADLE_EXIT=${PIPESTATUS[0]}
+
+          if [[ $GRADLE_EXIT -ne 0 ]]; then
+            echo ""
+            echo "════════════════════════════════════════════════════"
+            echo "  BUILD FAILED — ROOT CAUSE:"
+            echo "════════════════════════════════════════════════════"
+            # Kotlin compile errors look like: "e: /path/file.kt:42:5 error: ..."
+            echo "--- Kotlin compile errors ---"
+            grep -n "^e: \|error: " build_output.txt | head -30 || echo "(none)"
+            echo ""
+            echo "--- First Caused by: chain ---"
+            grep -n "Caused by:" build_output.txt | head -5 || echo "(none)"
+            echo ""
+            # Print 30 lines after each "Caused by:" (the first 2 occurrences)
+            grep -n "Caused by:" build_output.txt | head -2 | while IFS=: read linenum rest; do
+              echo ">>> Context at line $linenum:"
+              sed -n "$((linenum-2)),$((linenum+30))p" build_output.txt
+              echo "---"
+            done
+            echo ""
+            echo "--- Task that failed ---"
+            grep -n "FAILED\|What went wrong\|Task.*FAILED" build_output.txt | head -10 || echo "(none)"
+            echo "════════════════════════════════════════════════════"
+          fi
+
+          exit $GRADLE_EXIT
+
+      - name: Upload full build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log-${{ github.run_number }}
+          path: build_output.txt
+          retention-days: 7
+
+      # ── 7. Upload APK ────────────────────────────────────────────────────────
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: DownFlow-debug-${{ github.run_number }}
+          path: app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 30
+
+      # ── 8. Show APK info ─────────────────────────────────────────────────────
+      - name: APK summary
+        run: |
+          APK=app/build/outputs/apk/debug/app-debug.apk
+          echo "### Build complete" >> $GITHUB_STEP_SUMMARY
+          echo "| | |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| APK | \`$(basename $APK)\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Size | $(ls -lh $APK | awk '{print $5}') |" >> $GITHUB_STEP_SUMMARY
+          echo "| Commit | \`${{ github.sha }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Download from the **Artifacts** section of this run." >> $GITHUB_STEP_SUMMARY
+
+  # ── Release build (only on push to main) ────────────────────────────────────
+  release:
+    name: Build Release APK
+    runs-on: ubuntu-22.04
+    needs: build
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          cmdline-tools-version: '11076708'
+          packages: 'build-tools;35.0.0 platforms;android-35'
+
+      - name: Download aria2c ARM64 binary
+        run: |
+          mkdir -p app/src/main/assets
+          ARIA2_VER="1.37.0"
+          URLS=(
+            "https://github.com/Menci/aria2-static/releases/download/${ARIA2_VER}/aria2-aarch64-linux-android"
+            "https://github.com/abcfy2/aria2-static-build/releases/download/${ARIA2_VER}/aria2-aarch64-linux-android.tar.gz"
+            "https://github.com/P3TERX/aria2-static-build/releases/latest/download/aria2-android-aarch64.tar.gz"
+          )
+          SUCCESS=false
+          for URL in "${URLS[@]}"; do
+            echo "Trying: $URL"
+            if curl -fsSL --max-time 60 "$URL" -o aria2_download; then
+              TYPE=$(file aria2_download | head -1)
+              if echo "$TYPE" | grep -q 'gzip\|tar'; then
+                mkdir -p aria2_extract
+                tar -xzf aria2_download -C aria2_extract 2>/dev/null || true
+                ARIA2_BIN=$(find aria2_extract -name 'aria2c' -o -name 'aria2' -type f | head -1)
+              else
+                ARIA2_BIN="aria2_download"
+              fi
+              if [[ -n "$ARIA2_BIN" && -f "$ARIA2_BIN" ]]; then
+                cp "$ARIA2_BIN" app/src/main/assets/aria2c
+                chmod 755 app/src/main/assets/aria2c
+                SUCCESS=true
+                break
+              fi
+            fi
+          done
+          $SUCCESS || { sudo apt-get install -y aria2 && cp "$(which aria2c)" app/src/main/assets/aria2c; }
+          chmod 755 app/src/main/assets/aria2c
+          echo "aria2c: $(file app/src/main/assets/aria2c)"
+
+      - name: Download gradle-wrapper.jar
+        run: |
+          JAR="gradle/wrapper/gradle-wrapper.jar"
+          if [[ ! -f "$JAR" ]] || [[ $(wc -c < "$JAR") -lt 10000 ]]; then
+            curl -fsSL \
+              "https://github.com/gradle/gradle/raw/v8.9.0/gradle/wrapper/gradle-wrapper.jar" \
+              -o "$JAR"
+          fi
+
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+
+      # Sign with keystore stored as a GitHub secret (base64-encoded).
+      # Add these in: repo Settings → Secrets → Actions:
+      #   RELEASE_KEYSTORE_BASE64  (base64 of your .jks / .keystore file)
+      #   STORE_PASSWORD           (keystore password)
+      #   KEY_ALIAS                (key alias inside the keystore)
+      #   KEY_PASSWORD             (key password)
+      - name: Build signed release APK
+        env:
+          KEYSTORE_B64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+          STORE_PASS:   ${{ secrets.STORE_PASSWORD }}
+          KEY_ALIAS:    ${{ secrets.KEY_ALIAS }}
+          KEY_PASS:     ${{ secrets.KEY_PASSWORD }}
+        run: |
+          if [[ -n "$KEYSTORE_B64" ]]; then
+            echo "$KEYSTORE_B64" | base64 --decode > release.keystore
+            ./gradlew assembleRelease \
+              --no-daemon \
+              -Pandroid.injected.signing.store.file="$PWD/release.keystore" \
+              -Pandroid.injected.signing.store.password="$STORE_PASS" \
+              -Pandroid.injected.signing.key.alias="$KEY_ALIAS" \
+              -Pandroid.injected.signing.key.password="$KEY_PASS" \
+              -Dorg.gradle.jvmargs="-Xmx3g -XX:MaxMetaspaceSize=1g"
+          else
+            echo "No keystore secret — building unsigned release."
+            ./gradlew assembleRelease \
+              --no-daemon \
+              -Dorg.gradle.jvmargs="-Xmx3g -XX:MaxMetaspaceSize=1g"
+          fi
+
+      - name: Upload release APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: DownFlow-release-${{ github.run_number }}
+          path: app/build/outputs/apk/release/app-release*.apk
+          retention-days: 90

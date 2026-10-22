@@ -1,0 +1,8 @@
+# Copy this file to local.properties and set sdk.dir to your Android SDK location.
+# build_termux.sh writes local.properties automatically — you only need this on PC.
+#
+# Example (Linux / macOS):
+#   sdk.dir=/home/yourname/Android/Sdk
+# Example (Windows):
+#   sdk.dir=C\:\\Users\\yourname\\AppData\\Local\\Android\\Sdk
+sdk.dir=/path/to/your/Android/Sdk

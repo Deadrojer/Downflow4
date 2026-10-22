@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="file" path="aria2/" />
+        <exclude domain="file" path="bin/" />
+        <exclude domain="sharedpref" path="aria2_secret.xml" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="file" path="aria2/" />
+        <exclude domain="file" path="bin/" />
+    </device-transfer>
+</data-extraction-rules>

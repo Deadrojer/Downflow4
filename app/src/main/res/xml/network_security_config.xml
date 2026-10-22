@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Network Security Configuration
+    ─────────────────────────────────────────────────────────────────────────
+    Allows cleartext traffic ONLY to localhost (127.0.0.1) so the app can
+    talk to the embedded aria2 JSON-RPC server over plain HTTP on loopback.
+    All other connections use system default (TLS required on API 28+).
+    TLS certificate validation is NEVER disabled.
+-->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <!-- loopback only — aria2 JSON-RPC -->
+        <domain includeSubdomains="false">127.0.0.1</domain>
+        <domain includeSubdomains="false">localhost</domain>
+    </domain-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

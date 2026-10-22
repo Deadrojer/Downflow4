@@ -1,0 +1,6 @@
+# This placeholder exists so Git tracks the directory.
+# The actual gradle-wrapper.jar is generated when you run:
+#   gradle wrapper --gradle-version 8.9
+# OR it is downloaded automatically by Android Studio on first sync.
+# To generate manually:
+#   cd DownFlow && gradle wrapper

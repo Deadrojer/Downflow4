@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- App-private files dir: /data/data/<pkg>/files/ -->
+    <files-path name="app_files" path="." />
+    <!-- App-specific external storage: /sdcard/Android/data/<pkg>/files/ -->
+    <external-files-path name="app_external_files" path="." />
+    <!-- Cache dir -->
+    <cache-path name="app_cache" path="." />
+</paths>

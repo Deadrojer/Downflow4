@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+    <!-- Exclude the aria2 session file and any cached binaries from backup -->
+    <exclude domain="file" path="aria2/" />
+    <exclude domain="file" path="bin/" />
+</full-backup-content>

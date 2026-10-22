@@ -1,0 +1,81 @@
+ARIA2C BINARY PLACEHOLDER
+=========================
+
+This file documents the `aria2c` ARM64 binary that must be placed in this
+directory before building the DownFlow APK.
+
+The binary is NOT included in this source repository for two reasons:
+
+  1. File size — a statically-linked ARM64 aria2c is ~4–7 MB and is not
+     suitable for a Git repository.
+
+  2. GPL compliance — aria2 is licensed under GPL v2+. Distributing a
+     prebuilt binary requires your build process to be reproducible and the
+     source to be available. Building it yourself from the official source
+     is the cleanest approach.
+
+
+HOW TO BUILD
+------------
+
+A ready-to-use cross-compile script is included:
+
+    bash scripts/build_aria2_android.sh
+
+Prerequisites:
+  • Android NDK r26+ (set ANDROID_NDK_HOME)
+  • Standard build tools: autoconf, automake, libtool, make, curl, pkg-config
+
+After a successful build the script places the binary at:
+
+    app/src/main/assets/aria2c
+
+(This README file is ignored by the app; only aria2c itself is used.)
+
+
+BINARY REQUIREMENTS
+-------------------
+
+  • Architecture : ARM64 (AArch64)
+  • Libc         : Android Bionic (NOT glibc)
+  • Linking      : Statically linked (no shared lib dependencies)
+  • Target API   : 26+ (Android 8.0)
+  • Compile with : NDK clang (aarch64-linux-android26-clang)
+
+A binary built for glibc Linux will NOT work on Android.
+
+
+VERIFICATION
+------------
+
+After building, verify the binary:
+
+    file app/src/main/assets/aria2c
+    # Should print something like:
+    # aria2c: ELF 64-bit LSB executable, ARM aarch64, ...
+    # statically linked, stripped
+
+    adb push app/src/main/assets/aria2c /data/local/tmp/
+    adb shell chmod +x /data/local/tmp/aria2c
+    adb shell /data/local/tmp/aria2c --version
+
+
+ARIA2 VERSION
+-------------
+
+The build script targets aria2 1.37.0. This is the version tested with
+DownFlow's JSON-RPC interface. Newer versions may also work but have not
+been verified.
+
+
+ARIA2 LICENSE
+-------------
+
+aria2 is copyright (c) 2006, 2007, 2008, 2009, 2010, 2011, 2012, 2013,
+2014, 2015, 2016 Tatsuhiro Tsujikawa.
+
+It is released under the GNU General Public License version 2 or later.
+Source: https://github.com/aria2/aria2
+
+By embedding this binary in DownFlow, the DownFlow application is a
+"Combined Work" under GPL terms. See THIRD_PARTY_NOTICES.md for details.

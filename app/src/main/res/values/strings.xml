@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">DownFlow</string>
+
+    <!-- Navigation -->
+    <string name="nav_downloads">Downloads</string>
+    <string name="nav_browser">Browser</string>
+    <string name="nav_history">History</string>
+    <string name="nav_settings">Settings</string>
+
+    <!-- Download states -->
+    <string name="state_active">Active</string>
+    <string name="state_waiting">Waiting</string>
+    <string name="state_paused">Paused</string>
+    <string name="state_complete">Complete</string>
+    <string name="state_error">Error</string>
+    <string name="state_removed">Removed</string>
+
+    <!-- Actions -->
+    <string name="action_add_url">Add URL</string>
+    <string name="action_paste">Paste</string>
+    <string name="action_pause">Pause</string>
+    <string name="action_resume">Resume</string>
+    <string name="action_retry">Retry</string>
+    <string name="action_remove">Remove</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="action_confirm">Confirm</string>
+    <string name="action_open_file">Open File</string>
+    <string name="action_open_folder">Open Folder</string>
+
+    <!-- Notifications -->
+    <string name="notification_channel_download">Downloads</string>
+    <string name="notification_channel_download_desc">Active download progress</string>
+    <string name="notification_channel_engine">Engine</string>
+    <string name="notification_channel_engine_desc">Download engine status</string>
+    <string name="notification_engine_running">DownFlow engine running</string>
+    <string name="notification_downloading">Downloading…</string>
+    <string name="notification_action_stop_all">Stop All</string>
+
+    <!-- Settings -->
+    <string name="settings_download_folder">Download Folder</string>
+    <string name="settings_max_downloads">Max Simultaneous Downloads</string>
+    <string name="settings_max_connections">Max Connections per Server</string>
+    <string name="settings_speed_limit">Global Speed Limit</string>
+    <string name="settings_speed_limit_hint">0 = unlimited (e.g. 5M, 500K)</string>
+    <string name="settings_engine_status">Engine Status</string>
+    <string name="settings_engine_restart">Restart Engine</string>
+    <string name="settings_vpn_troubleshooting">VPN Troubleshooting</string>
+    <string name="settings_about">About</string>
+    <string name="settings_licenses">Open-Source Licenses</string>
+    <string name="settings_notifications">Notifications</string>
+
+    <!-- Engine -->
+    <string name="engine_starting">Starting…</string>
+    <string name="engine_running">Running</string>
+    <string name="engine_stopped">Stopped</string>
+    <string name="engine_error">Engine Error</string>
+    <string name="engine_not_found">aria2 binary not found. Please reinstall the app.</string>
+
+    <!-- VPN -->
+    <string name="vpn_info_title">VPN &amp; Routing</string>
+    <string name="vpn_info_body">Downloads follow Android\'s active VPN routing. If Proton VPN is connected and set to route all traffic, downloads will pass through the VPN tunnel automatically.\n\nFor reliable VPN coverage:\n• Enable Always-on VPN in Android Settings → Network → VPN.\n• Enable Block connections without VPN to prevent leaks on reconnects.\n\nDownFlow does not control or configure Proton VPN directly.</string>
+    <string name="vpn_open_settings">Open VPN Settings</string>
+    <string name="vpn_open_proton">Open Proton VPN</string>
+
+    <!-- Errors -->
+    <string name="error_invalid_url">Invalid or unsupported URL</string>
+    <string name="error_engine_not_running">Engine is not running. Start it in Settings.</string>
+    <string name="error_storage_permission">Storage permission denied</string>
+    <string name="error_insufficient_storage">Insufficient storage space</string>
+    <string name="error_unknown">An unexpected error occurred</string>
+
+    <!-- Empty states -->
+    <string name="empty_downloads">No downloads yet.\nPaste a URL or browse to start.</string>
+    <string name="empty_history">No download history.</string>
+
+    <!-- About -->
+    <string name="about_version">Version %1$s</string>
+    <string name="about_aria2_notice">This application embeds aria2, licensed under GPLv2+. Source: https://github.com/aria2/aria2</string>
+    <string name="about_rpc_security_note">The aria2 JSON-RPC server is bound exclusively to 127.0.0.1. It is not accessible from external network interfaces. The RPC secret is generated cryptographically at runtime and stored in Android Keystore-backed storage.</string>
+</resources>
